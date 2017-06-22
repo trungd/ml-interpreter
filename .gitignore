@@ -1,0 +1,9 @@
+/*.cmx
+*.cmi
+*.o
+/._*
+/#*#
+miniml
+lexer.ml
+parser.*
+!parser.mly
