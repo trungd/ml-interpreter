@@ -2,22 +2,26 @@ open Syntax
 open Eval
 open Printf
 
+let rec print_result ls = match ls with
+  | [] -> ()
+  | it :: rest -> match it with (id, v) ->
+      printf "val %s = " id;
+      pp_val v;
+      print_newline ();
+      print_result rest
+
 let rec read_file_eval_print ic env =
   try 
     while true; do 
       let line = input_line ic
         in let decl = Parser.toplevel Lexer.main (Lexing.from_string (line)) in
           print_endline ("# " ^ line);
-          try let (id, newenv, v) =  eval_decl env decl in
-            printf "val %s = " id;
-            pp_val v;
-            print_newline();
+          let (ls, newenv) =  eval_decl env decl in 
+            print_result ls;
             read_file_eval_print ic newenv
-          with
-            | Error msg -> err msg; read_file_eval_print ic env
     done
   with
-    | Error msg -> err msg
+    | Error msg -> err msg; read_file_eval_print ic env
     | e -> close_in ic
   
 
@@ -28,11 +32,10 @@ let rec read_eval_print env =
   flush stdout;
   let decl = Parser.toplevel Lexer.main (Lexing.from_channel stdin) in
     (* Ex 3.2.2 *)
-    try let (id, newenv, v) =  eval_decl env decl in
-      printf "val %s = " id;
-      pp_val v;
-      print_newline();
-      read_eval_print newenv
+    try 
+      let (ls, newenv) =  eval_decl env decl in
+        print_result ls;
+        read_eval_print newenv
     with
       | Error msg -> err msg; read_eval_print env
     (**)

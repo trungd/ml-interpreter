@@ -2,7 +2,7 @@
 type id = string
 type idlist = id list
 
-type binOp = Plus | Mult | Lt | Gt | Eq | And | Or
+type binOp = Plus | Minus | Mult | Lt | Gt | Eq | And | Or
 
 type exp =
   | Var of id
@@ -10,7 +10,7 @@ type exp =
   | BLit of bool
   | BinOp of binOp * exp * exp
   | IfExp of exp * exp * exp
-  | LetExp of id * exp * exp
+  | LetExp of (id * exp) list * exp
   | LetRecExp of id * id * exp * exp
   | FunExp of idlist * exp
   | AppExp of exp * exp list
@@ -18,5 +18,6 @@ type exp =
 
 type program = 
   | Exp of exp
-  | Decl of id * exp  
+  | Decl of id * exp
+  | Decls of (id * exp) list  
   | RecDecl of id * id * exp

@@ -1,4 +1,4 @@
-open Syntax 
+open Syntax
 
 type exval = 
     IntV of int
@@ -26,6 +26,8 @@ let pp_val v = print_string (string_of_exval v)
 let rec apply_prim op arg1 arg2 = match op, arg1, arg2 with
   | Plus, IntV i1, IntV i2 -> IntV (i1 + i2)
   | Plus, _, _ -> err ("Both arguments must be integer: +" ^ string_of_exval arg1)
+  | Minus, IntV i1, IntV i2 -> IntV (i1 - i2)
+  | Minus, _, _ -> err ("Both arguments must be integer: -" ^ string_of_exval arg1)
   | Mult, IntV i1, IntV i2 -> IntV (i1 * i2)
   | Mult, _, _ -> err ("Both arguments must be integer: *")
   | Lt, IntV i1, IntV i2 -> BoolV (i1 < i2)
@@ -34,12 +36,12 @@ let rec apply_prim op arg1 arg2 = match op, arg1, arg2 with
   | Gt, _, _ -> err ("Both arguments must be integer: >")
   | Eq, IntV i1, IntV i2 -> BoolV (i1 = i2)
   | Eq, _, _ -> err ("Both arguments must be integer: =")
-  (* Ex 3.2.3 *)
+  (* Ex 3.2.3: implement && and || *)
   | And, BoolV b1, BoolV b2 -> BoolV (b1 && b2)
   | And, _, _ -> err ("Both arguments must be boolean: &&")
   | Or, BoolV b1, BoolV b2 -> BoolV (b1 || b2)
   | Or, _, _ -> err ("Both arguments must be boolean: ||")
-  (**)
+  (* /Ex 3.2.3 *)
 
 let rec eval_exp env = function
   | Var x -> 
@@ -57,9 +59,13 @@ let rec eval_exp env = function
           | BoolV true -> eval_exp env exp2 
           | BoolV false -> eval_exp env exp3
           | _ -> err ("Test expression must be boolean: if"))
-  | LetExp(id, exp1, exp2) ->
-      let value = eval_exp env exp1 in 
-        eval_exp (Environment.extend id value env) exp2 
+  | LetExp(ls, exp2) ->
+      let rec extend_env ls newenv = match ls with
+        | [] -> newenv
+        | it::rest -> (match it with (id, exp) -> 
+            let v = eval_exp env exp
+            in extend_env rest (Environment.extend id v newenv))
+      in eval_exp (extend_env ls env) exp2
   | FunExp (ids, exp) -> ProcV(ids, exp, ref env)
   | AppExp (expfun, explist) ->
       let funval = eval_exp env expfun in (match funval with
@@ -99,9 +105,17 @@ let rec eval_exp env = function
           eval_exp newenv exp2
 
 let eval_decl env = function
-  | Exp e -> let v = eval_exp env e in ("-", env, v)
-  | Decl (id, e) -> let v = eval_exp env e 
-      in (id, Environment.extend id v env, v)  
-  | RecDecl (id, para, e) -> let v = ProcV ([para], e, ref env)
-      in (id, Environment.extend id v env, v)
-
+  | Exp exp -> let value = eval_exp env exp in ([("-", value)], env)
+  | Decls id_val_ls (* Ex 3.3.2: enable multiple declaration *) ->
+      let newenv = ref env in
+      (* Add id and value to the extended newenv *)
+      let rec decl_ls ls = match ls with
+        | [] -> []
+        | (id, exp)::rest -> 
+            let value = eval_exp env exp (* All expressions are calculated under original env *)
+            in 
+              newenv := Environment.extend id value !newenv;
+              (id, value)::decl_ls rest 
+      in (decl_ls id_val_ls, !newenv)
+  | RecDecl (id, param, exp) -> let value = ProcV ([param], exp, ref env)
+      in ([(id, value)], Environment.extend id value env)

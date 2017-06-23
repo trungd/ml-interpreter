@@ -9,7 +9,8 @@ let reservedWords = [
   ("in", Parser.IN);
   ("let", Parser.LET);
   ("fun", Parser.FUN);
-  ("rec", Parser.REC)
+  ("rec", Parser.REC);
+  ("and", Parser.ANDKW);
 ] 
 }
 
@@ -24,6 +25,7 @@ rule main = parse
 | ")" { Parser.RPAREN }
 | ";;" { Parser.SEMISEMI }
 | "+" { Parser.PLUS }
+| "-" { Parser.MINUS }
 | "*" { Parser.MULT }
 | "<" { Parser.LT }
 | ">" { Parser.GT }

@@ -1,0 +1,2 @@
+a;;
+(* interactive mode only *)
