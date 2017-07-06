@@ -1,12 +1,17 @@
-3.2.1
-3.2.2**
-3.2.3*
+Compile
 
-3.4.2**
-3.4.3*
+```
+make
+```
 
 Input a file:
 
 ```
-./miniml <file_path>
+./miniml < <file_path>
+```
+
+or run in interactive mode
+
+```
+./miniml
 ```
