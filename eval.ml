@@ -96,7 +96,7 @@ let rec eval_exp env = function
             eval_exp !_env_ (AppExp (FunExp (ls_id2, body2), exps))
         else eval_exp !_env_ body
     | DProcV (id, body, env') ->
-        let _env_ = update_env env' env in
+        let _env_ = update_env !env' env in
         let exp = List.hd ls_exp in
         _env_ := Environment.extend id (eval_exp env exp) !_env_;
         eval_exp !_env_ body
@@ -139,11 +139,11 @@ and extend_env env eval_env ids exps =
           extend_env env eval_env ids_rest exps_rest
 
 (* if variable in env found in env2, update with value from env2 *)
-and update_env env env2 = let ls = Environment.get_list !env in
-  let newenv = ref env in
-  let f id v = try let value = Environment.lookup id env2
-    in Environment.update newenv id value;
-  with Environment.Not_bound -> () in
+and update_env env1 env2 = let ls = Environment.get_list env1 in
+  let newenv = ref env1 in
+  let f (id, v) = try let value = Environment.lookup id env2
+    in newenv := Environment.update !newenv id value;
+    with Environment.Not_bound -> () in
   List.iter f ls;
   newenv
 

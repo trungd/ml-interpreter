@@ -13,9 +13,10 @@ let rec map f = function
     [] -> []
   | (id, v)::rest -> (id, f v) :: map f rest
 
-let rec map_full f = function
+let rec map_by_id f = function
     [] -> []
-  | (id, v)::rest -> (id, f id v) :: map f rest
+  | (id, v)::rest -> 
+  (id, f (id, v))::(map_by_id f rest)
 
 let rec get_list = function
     [] -> []
@@ -28,4 +29,4 @@ let rec fold_right f env a =
 
 let length env = List.length env
 
-let update env id value = map_full ()
+let update env id value = map_by_id (fun (id', value') -> if id' = id then value else value') env
