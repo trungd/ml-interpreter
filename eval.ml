@@ -64,6 +64,8 @@ let rec eval_exp env = function
 | BLit b -> BoolV b
 | BinOp (op, exp1, exp2) -> 
     let arg1 = eval_exp env exp1 in
+    if op = And && arg1 = BoolV false then BoolV false else
+    if op = Or && arg1 = BoolV true then BoolV true else
     let arg2 = eval_exp env exp2 in
     apply_prim op arg1 arg2
 | IfExp (exp1, exp2, exp3) ->
@@ -92,8 +94,10 @@ let rec eval_exp env = function
         else if (List.length exps) > 0 then
           (* More applied values than parameters -> continue applying *)
           let ret_exval = eval_exp !_env_ body in 
-          match ret_exval with ProcV(ls_id2, body2, env2') -> 
-            eval_exp !_env_ (AppExp (FunExp (ls_id2, body2), exps))
+          match ret_exval with 
+          | ProcV(ls_id2, body2, env2') -> 
+            eval_exp !env2' (AppExp (FunExp (ls_id2, body2), exps))
+          | _ -> err ("Function expected")
         else eval_exp !_env_ body
     | DProcV (id, body, env') ->
         let _env_ = update_env !env' env in
@@ -125,6 +129,12 @@ let rec eval_exp env = function
       | [] -> values
       | exp :: rest -> eval_list rest (values @ [eval_exp env exp])
     in ListV (eval_list exps [])
+| AppendExp (e1, e2) ->
+    let v1 = eval_exp env e1 in
+    let v2 = eval_exp env e2 in 
+    (match v2 with 
+    | ListV ls -> ListV (v1::ls)
+    | _ -> err ("There must be a list after ::"))
 | MatchExp (exp, match_pattern_list) ->
     let value = eval_exp env exp
     in match_exp env value match_pattern_list
@@ -198,6 +208,21 @@ let eval_decl env = function
         _env_ := Environment.extend id value !_env_;
         (id, value) :: id_val_ls) in 
     (List.fold_right f id_exp_ls [], !_env_)
-| RecDecl (id, param, exp) -> 
-    let value = ProcV ([param], exp, ref env) in
-    ([(id, value)], Environment.extend id value env)
+| RecDecls id_exp_ls -> 
+  let id_val_ls = ref [] in
+  (* Mutual recursion *)
+  let rec extend_env ls newenv dummyenv_ls = match ls with
+  | [] -> 
+    (* Update environment of all Proc *)
+    List.map (fun dummyenv -> (dummyenv := newenv;)) dummyenv_ls;
+    newenv
+  | it::rest -> (match it with (id, param, exp) ->
+    let dummyenv = ref Environment.empty in
+    let proc = ProcV ([param], exp, dummyenv) in
+      let newenv' = Environment.extend id proc newenv in
+        dummyenv := newenv';
+        id_val_ls := (id, proc) :: !id_val_ls;
+        extend_env rest newenv' (dummyenv::dummyenv_ls)
+    ) in 
+    let newenv = extend_env id_exp_ls env [] in
+    (!id_val_ls, newenv)

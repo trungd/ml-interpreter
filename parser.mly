@@ -22,22 +22,32 @@ open Syntax
 LetAndExpr :
 | x=ID EQ e=Expr ANDKW ls=LetAndExpr { (x,e)::ls }
 | x=ID EQ e=Expr { [(x ,e)] }
+| x=ID param=ID EQ e=Expr { [(x, FunExp([param], e))] }
 (* /Ex3.3.4 *)
 
 LetRecAndExpr :
-  | x=ID param=ID EQ e=Expr ANDKW ls=LetRecAndExpr { (x, param, e)::ls }
-  | x=ID param=ID EQ e=Expr { [(x, param, e)] }
+| x=ID param=ID EQ e=Expr ANDKW ls=LetRecAndExpr { (x, param, e)::ls }
+| x=ID EQ FUN param=ID RARROW e=Expr ANDKW ls=LetRecAndExpr { (x, param, e)::ls }
+| x=ID param=ID EQ e=Expr { [(x, param, e)] }
+| x=ID EQ FUN param=ID RARROW e=Expr { [(x, param, e)] }
 
 TopLetExpr :
 | LET x=ID EQ e=Expr ls=TopLetExpr { (x, e)::ls }
 | LET x=ID EQ e=Expr { [(x, e)] }
 | LET x=ID ls_param=FunParamListExpr EQ e=Expr { [(x, FunExp(ls_param, e))] }
 
+TopLetRecExpr :
+| LET REC x=ID param=ID EQ e=Expr ls=TopLetRecExpr { (x, param, e)::ls }
+| LET REC x=ID EQ FUN param=ID RARROW e=Expr ls=TopLetRecExpr { (x, param, e)::ls }
+| LET REC x=ID param=ID EQ e=Expr { [(x, param, e)] }
+| LET REC x=ID EQ FUN param=ID RARROW e=Expr { [(x, param, e)] }
+
 toplevel :
 | e=Expr SEMISEMI { Exp e }
 | LET ls=LetAndExpr SEMISEMI { AndDecls ls }
+| LET REC ls=LetRecAndExpr SEMISEMI { RecDecls ls }
 | ls=TopLetExpr SEMISEMI { Decls ls }
-| LET REC x=ID para=ID EQ e=Expr SEMISEMI { RecDecl(x, para, e) }
+| ls=TopLetRecExpr SEMISEMI { RecDecls ls }
 
 Expr :
 | e=IfExpr { e }
@@ -50,24 +60,24 @@ Expr :
 | e=OrExpr { e }
 | e=FunExpr { e }
 | e=DFunExpr { e }
+| e=AppendExpr { e }
 | e=ListExpr { e }
 | e=MatchExpr { e }
 
 LTExpr : 
     l=PExpr LT r=PExpr { BinOp (Lt, l, r) }
   | LT { OpFunExp (Lt) }
-  | e=PExpr { e }
+  | e=GTExpr { e }
 
 GTExpr : 
     l=PExpr GT r=PExpr { BinOp (Gt, l, r) }
   | GT { OpFunExp (Gt) }
-  | e=PExpr { e }
+  | e=EQExpr { e }
 
 EQExpr : 
     l=PExpr EQ r=PExpr { BinOp (Eq, l, r) }
   | EQ { OpFunExp (Eq) }
   | e=PExpr { e }
-  | e=MiExpr { e }
 
 PExpr :
   | l=PExpr PLUS r=MExpr { BinOp (Plus, l, r) }
@@ -97,27 +107,47 @@ OrExpr:
 AppExpr :
   | e=AppExpr ls=AppParamListExpr { AppExp(e, ls) } 
   | e=AExpr { e }
+  | e=AExprEx { e }
+
+(* a::[] *)
+AppendExpr :
+  | e1=Expr TWOCOLONS e2=Expr { AppendExp(e1, e2) }
 
 AppParamListExpr :
     e=AExpr ls=AppParamListExpr  { e::ls }
   | e=AExpr { [e] }
 
 AExpr :
-  | i=INTV { ILit i }
-  | TRUE   { BLit true }
-  | FALSE  { BLit false }
-  | i=ID   { Var i }
-  | LPAREN e=Expr RPAREN { e }
-  | exp=ListExpr { exp }
+| i=INTV { ILit i }
+| TRUE   { BLit true }
+| FALSE  { BLit false }
+| i=ID   { Var i }
+| LPAREN e=Expr RPAREN { e }
+| e=ListExpr { e }
+
+AExprEx :
+| i=INTV { ILit i }
+| TRUE   { BLit true }
+| FALSE  { BLit false }
+| i=ID   { Var i }
+| LPAREN e=Expr RPAREN { e }
+| e=IfExpr { e }
+| e=LetExpr{ e }  
+| e=LetRecExpr { e }
+| e=FunExpr { e }
+| e=DFunExpr { e }
+| e=ListExpr { e }
+| e=MatchExpr { e }
 
 IfExpr :
   | IF c=Expr THEN t=Expr ELSE e=Expr { IfExp (c, t, e) }
 
 LetExpr :
 | LET ls=LetAndExpr IN e=Expr { LetExp(ls, e) }
+| LET x=ID ls_param=FunParamListExpr EQ e=Expr IN e2=Expr { LetExp([(x, FunExp(ls_param, e))], e2) }
 
 LetRecExpr :
-  | LET REC ls=LetRecAndExpr IN e=Expr { LetRecExp(ls, e) }
+| LET REC ls=LetRecAndExpr IN e=Expr { LetRecExp(ls, e) }
 
 FunExpr :
 | FUN ls_param=FunParamListExpr RARROW e=Expr { FunExp(ls_param, e) }

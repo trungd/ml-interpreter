@@ -22,13 +22,14 @@ type exp =
 | OpFunExp of binOp
 | MatchExp of exp * (matchPattern * exp) list
 | ListExp of exp list
+| AppendExp of exp * exp
 
 type program = 
 | Exp of exp
 | Decl of id * exp
 | Decls of (id * exp) list
 | AndDecls of (id * exp) list
-| RecDecl of id * id * exp
+| RecDecls of (id * id * exp) list
 
 exception Error of string
 let err s = raise (Error s)

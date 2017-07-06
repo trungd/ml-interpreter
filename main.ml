@@ -34,12 +34,9 @@ let rec read_eval_print env =
     (**)
 
 (* Ex 3.2.1 *)
-let initial_env = Environment.empty;;
-(*
-TODO: remove this comment
 let initial_env = Environment.append Environment.empty
   [("i", IntV 1); ("ii", IntV 2); ("iii", IntV 3); ("iv", IntV 4); ("v", IntV 5); ("x", IntV 10)]
-*)
+
 
 let _ = let env = initial_env in
   print_endline "      miniml by Dang Viet Trung";
