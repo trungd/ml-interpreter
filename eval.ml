@@ -83,29 +83,7 @@ let rec eval_exp env = function
     eval_exp _env_ ret_exp
 | FunExp (ids, exp) -> ProcV(ids, exp, ref env)
 | DFunExp (id, exp) -> DProcV(id, exp, ref env)
-| AppExp (expfun, ls_exp) -> (match (eval_exp env expfun) with
-    | ProcV (ls_id, body, env') -> 
-        let _env_ = ref Environment.empty in _env_ := !env';
-        let (ids, exps) = extend_env _env_ env ls_id ls_exp in
-        (* Apply function *)
-        if (List.length ids) > 0 then
-          (* More parameters than applied values -> return new function *)
-          ProcV(ids, body, _env_)
-        else if (List.length exps) > 0 then
-          (* More applied values than parameters -> continue applying *)
-          let ret_exval = eval_exp !_env_ body in 
-          match ret_exval with 
-          | ProcV(ls_id2, body2, env2') -> 
-            eval_exp !env2' (AppExp (FunExp (ls_id2, body2), exps))
-          | _ -> err ("Function expected")
-        else eval_exp !_env_ body
-    | DProcV (id, body, env') ->
-        let _env_ = update_env !env' env in
-        let exp = List.hd ls_exp in
-        _env_ := Environment.extend id (eval_exp env exp) !_env_;
-        eval_exp !_env_ body
-    | _ -> err ("None-function value is applied: " ^ string_of_exp expfun))
-      
+| AppExp (expfun, ls_exp) -> apply env (eval_exp env expfun) ls_exp
 (* Ex 3.4.2 *)
 | OpFunExp (op) ->
     ProcV (["x"; "y"], BinOp(op, Var("x"), Var("y")), ref env)
@@ -148,12 +126,40 @@ and extend_env env eval_env ids exps =
           env := Environment.extend id arg !env;
           extend_env env eval_env ids_rest exps_rest
 
+and apply env valfun ls_exp =
+  match valfun with
+  | ProcV (ls_id, body, env') -> 
+      let _env_ = env' in
+      let (ids, exps) = extend_env _env_ env ls_id ls_exp in
+      (* Apply function *)
+      if (List.length ids) > 0 then
+        (* More parameters than applied values -> return new function *)
+        ProcV(ids, body, _env_)
+      else if (List.length exps) > 0 then
+        (* More applied values than parameters -> continue applying *)
+        let ret_exval = eval_exp !_env_ body in 
+        apply env ret_exval exps
+      else eval_exp !_env_ body
+  | DProcV (id, body, env') ->
+      let _env_ = update_env !env' env in
+      let exp = List.hd ls_exp in
+      _env_ := Environment.extend id (eval_exp env exp) !_env_;
+      eval_exp !_env_ body
+  | _ -> err ("None-function value is applied.")
+
+and extend_env2 env1 env2 =
+  let newenv = ref env1 in
+  let ls = Environment.get_list env2 in
+  let f (id, v) = newenv := Environment.extend id v !newenv; in
+  List.iter f ls;
+  newenv
+
 (* if variable in env found in env2, update with value from env2 *)
 and update_env env1 env2 = let ls = Environment.get_list env1 in
   let newenv = ref env1 in
   let f (id, v) = try let value = Environment.lookup id env2
     in newenv := Environment.update !newenv id value;
-    with Environment.Not_bound -> () in
+    with Environment.Not_bound -> newenv := Environment.extend id v !newenv; in
   List.iter f ls;
   newenv
 
