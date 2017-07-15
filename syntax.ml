@@ -36,6 +36,7 @@ type tyvar = int
 type ty =
 | TyInt
 | TyBool
+| TyList of ty
 | TyVar of tyvar
 | TyFun of ty * ty
 
@@ -49,6 +50,7 @@ let cvar_ls = ref []
 let rec pp_ty = function
 | TyInt -> print_string "int"
 | TyBool -> print_string "bool"
+| TyList ty -> pp_ty ty; print_string " list"
 | TyVar tyvar -> let (id, c) =
     try List.find (fun (id, c) -> id = tyvar) !cvar_ls 
     with Not_found -> 

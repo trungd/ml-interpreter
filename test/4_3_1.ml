@@ -1,2 +1,1 @@
-let f = fun x -> x;;
-f f;;
+[fun x -> x + 1; fun y -> y];;

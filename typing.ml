@@ -24,13 +24,19 @@ let rec subst_type subst t = match subst with
 | [] -> t
 | (tv, ty)::rest -> (match t with 
   | TyInt -> TyInt
-  | TyBool ->  TyBool
+  | TyBool -> TyBool
+  | TyList ty -> TyList ty
   | TyFun (ty1, ty2) -> 
       TyFun (subst_type subst ty1, subst_type subst ty2)
   | TyVar tv2 -> 
       if tv2 = tv then subst_type rest ty
       else subst_type rest t
   | _ -> err ".")
+
+let rec gen_new_params ty1 ty2 = match ty1 with
+| TyInt -> (ty1, ty2)
+| TyBool -> (ty1, ty2)
+| TyVar tv -> let ty = TyVar (fresh_tyvar ()) in (ty, subst_type [(tv, ty)] ty2)
 
 let rec subst_types subst types = List.map (fun (ty1, ty2) -> (subst_type subst ty1, subst_type subst ty2)) types
 
@@ -49,8 +55,9 @@ let rec unify l = match l with
     if t1 = t2 then unify tail
     else (match (t1, t2) with
     | (TyFun  (t11, t12), TyFun (t21, t22)) -> unify ((t11, t21)::(t12, t22)::tail)
+    | (TyList ty1, TyList ty2) -> unify ((ty1, ty2)::tail)
     | (TyVar tv, ty) -> 
-        if (check_in_ftv tv ty) then err "型があってませんよ"
+        if (check_in_ftv tv ty) then err "型があってませんよ1"
         else (tv, ty) :: (unify (subst_types [(tv, t2)] tail))
     | (ty, TyVar tv) -> 
         if (check_in_ftv tv ty) then err "型があってませんよ2"
@@ -73,6 +80,9 @@ let rec ty_exp tyenv = function
       Environment.Not_bound -> err ("Variable not bound: " ^ x))
 | ILit _ -> ([], TyInt)
 | BLit _ -> ([], TyBool)
+| ListExp exps -> 
+    if (List.length exps > 0) then let (s, ty) = ty_exp tyenv (List.hd exps) in ([], TyList ty)
+    else ([], TyList (TyVar (fresh_tyvar())))
 | BinOp (op, exp1, exp2) ->
     let (s1, ty1) = ty_exp tyenv exp1 in
     let (s2, ty2) = ty_exp tyenv exp2 in
@@ -103,16 +113,38 @@ let rec ty_exp tyenv = function
     let f exp = let (se, tye) = ty_exp tyenv exp in
       match !tyret with 
       | TyFun (ty1', ty2') ->
-        eqs := !eqs @ (eqs_of_subst se) @ [(tye, ty1')];
-        tyret := ty2';
+        let (ty1'', ty2'') = gen_new_params ty1' ty2' in
+        eqs := !eqs @ (eqs_of_subst se) @ [(tye, ty1'')];
+        tyret := ty2'';
       | TyVar tv -> let tv_ret = TyVar (fresh_tyvar()) in 
-        eqs := !eqs @ [(TyVar tv, TyFun(tye, tv_ret))];
-        eqs' := !eqs' @ [(TyVar tv, TyFun(tye, tv_ret))];
+        eqs := !eqs @ (eqs_of_subst se) @ [(TyVar tv, TyFun(tye, tv_ret))];
+        eqs' := !eqs' @ (eqs_of_subst se) @ [(TyVar tv, TyFun(tye, tv_ret))];
         tyret := tv_ret
-      | _ -> err "Cannot be applied"
+      | _ -> err "型があってませんよ"
     in
     List.iter f ls_exp;
     let s = unify !eqs in (unify !eqs', subst_type s !tyret)
+| AppendExp (e1, e2) ->
+    let s1, ty1 = ty_exp tyenv e1 in
+    let s2, ty2 = ty_exp tyenv e2 in
+    let eqs = (eqs_of_subst s1) @ (eqs_of_subst s2) @ [(ty2, TyList ty1)] in
+    let s = unify eqs in
+    (s, subst_type s (TyList ty1))
+| MatchExp (exp, match_pattern_list) ->
+    let se, tye = ty_exp tyenv exp in
+    let TyList lsty = tye in
+    let (pattern0, exp0) = List.hd (match_pattern_list) in
+    let se0, tye0 = ty_exp tyenv exp0 in
+    let eqs = ref [] in
+    let f = function (pattern, match_exp) -> let newenv = (match pattern with
+    | EmptyList -> tyenv
+    | ListHeadTail (head_id, tail_id) -> Environment.extend tail_id tye (Environment.extend head_id lsty tyenv)) in
+    let sme, tyme = ty_exp newenv match_exp in
+    eqs := !eqs @ (eqs_of_subst sme) @ [(tyme, tye0)];
+    in
+    List.iter f (List.tl match_pattern_list);
+    let s = unify !eqs in (s, subst_type s tye0)
+
 | _ -> err ("Not Implemented 1")
 
 let ty_decl tyenv decl = cvar := (Char.chr 96); cvar_ls := []; 
