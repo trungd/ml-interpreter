@@ -50,7 +50,7 @@ let initial_env = Environment.append Environment.empty
   [("i", IntV 1); ("ii", IntV 2); ("iii", IntV 3); ("iv", IntV 4); ("v", IntV 5); ("x", IntV 10)]
 
 let initial_tyenv = Environment.append Environment.empty
-  [("i", TyInt); ("ii", TyInt); ("iii", TyInt); ("iv", TyInt); ("v", TyInt); ("x", TyInt)]
+  [("i", TyScheme ([], TyInt)); ("ii", TyScheme ([], TyInt)); ("iii", TyScheme ([], TyInt)); ("iv", TyScheme ([], TyInt)); ("v", TyScheme ([], TyInt)); ("x", TyScheme ([], TyInt))]
 
 let _ = print_endline "      miniml by Dang Viet Trung";
   print_endline "";

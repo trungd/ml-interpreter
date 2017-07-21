@@ -1,5 +1,6 @@
 %{
 open Syntax
+open Typing
 %}
 
 %token LPAREN RPAREN SEMISEMI
@@ -10,43 +11,64 @@ open Syntax
 %token COMMENT
 %token MATCH EMPTYLIST WITH TWOCOLONS SEP
 %token LSQBRACKET RSQBRACKET SEMI
+%token COLON SINGQUO TYPE_BOOL TYPE_INT
 
 %token <int> INTV
 %token <Syntax.id> ID
+%token <Syntax.id> TYPE_ID
 
 %start toplevel
 %type <Syntax.program> toplevel
 %%
 
+IdWithTypeExpr:
+| x=ID COLON ty=TypeExpr { (x, ty) }
+| x=ID { (x, TyNone) }
+
+TypeAExpr:
+| TYPE_INT { TyInt }
+| TYPE_BOOL { TyBool }
+| x=TYPE_ID { TyVar (TyVarName x) }
+
+TypeFunExpr: 
+| t1=TypeAExpr RARROW t2=TypeAExpr { TyFun(t1, t2) }
+
+TypeExpr:
+| LPAREN t=TypeExpr RPAREN { t }
+| t=TypeAExpr { t }
+| LPAREN t=TypeFunExpr RPAREN { t }
+
 (* Ex 3.3.4: multiple declaration with and *)
 LetAndExpr :
-| x=ID EQ e=Expr ANDKW ls=LetAndExpr { (x,e)::ls }
-| x=ID EQ e=Expr { [(x ,e)] }
-| x=ID param=ID EQ e=Expr { [(x, FunExp([param], e))] }
+| x=IdWithTypeExpr EQ e=Expr ANDKW ls=LetAndExpr { (x,e)::ls }
+| x=IdWithTypeExpr EQ e=Expr { [(x ,e)] }
+| x=IdWithTypeExpr param=IdWithTypeExpr EQ e=Expr { [(x, FunExp([param], TyNone, e))] }
+| x=IdWithTypeExpr param=IdWithTypeExpr COLON t=TypeExpr EQ e=Expr { [(x, FunExp([param], t, e))] }
 (* /Ex3.3.4 *)
 
 LetRecAndExpr :
-| x=ID param=ID EQ e=Expr ANDKW ls=LetRecAndExpr { (x, param, e)::ls }
-| x=ID EQ FUN param=ID RARROW e=Expr ANDKW ls=LetRecAndExpr { (x, param, e)::ls }
-| x=ID param=ID EQ e=Expr { [(x, param, e)] }
-| x=ID EQ FUN param=ID RARROW e=Expr { [(x, param, e)] }
+| x=IdWithTypeExpr param=IdWithTypeExpr EQ e=Expr ANDKW ls=LetRecAndExpr { (x, param, e)::ls }
+| x=IdWithTypeExpr EQ FUN param=IdWithTypeExpr RARROW e=Expr ANDKW ls=LetRecAndExpr { (x, param, e)::ls }
+| x=IdWithTypeExpr param=IdWithTypeExpr EQ e=Expr { [(x, param, e)] }
+| x=IdWithTypeExpr EQ FUN param=IdWithTypeExpr RARROW e=Expr { [(x, param, e)] }
 
 TopLetExpr :
-| LET x=ID EQ e=Expr ls=TopLetExpr { (x, e)::ls }
-| LET x=ID EQ e=Expr { [(x, e)] }
-| LET x=ID ls_param=FunParamListExpr EQ e=Expr { [(x, FunExp(ls_param, e))] }
+| LET x=IdWithTypeExpr EQ e=Expr ls=TopLetExpr { (x, e)::ls }
+| LET x=IdWithTypeExpr EQ e=Expr { [(x, e)] }
+| LET x=IdWithTypeExpr ls_param=FunParamListExpr EQ e=Expr { [(x, FunExp(ls_param, TyNone, e))] }
+| LET x=IdWithTypeExpr ls_param=FunParamListExpr COLON t=TypeExpr EQ e=Expr { [(x, FunExp(ls_param, t, e))] }
 
 TopLetRecExpr :
-| LET REC x=ID param=ID EQ e=Expr ls=TopLetRecExpr { (x, param, e)::ls }
-| LET REC x=ID EQ FUN param=ID RARROW e=Expr ls=TopLetRecExpr { (x, param, e)::ls }
-| LET REC x=ID param=ID EQ e=Expr { [(x, param, e)] }
-| LET REC x=ID EQ FUN param=ID RARROW e=Expr { [(x, param, e)] }
+| LET REC x=IdWithTypeExpr param=IdWithTypeExpr EQ e=Expr ls=TopLetRecExpr { (x, param, e)::ls }
+| LET REC x=IdWithTypeExpr EQ FUN param=IdWithTypeExpr RARROW e=Expr ls=TopLetRecExpr { (x, param, e)::ls }
+| LET REC x=IdWithTypeExpr param=IdWithTypeExpr EQ e=Expr { [(x, param, e)] }
+| LET REC x=IdWithTypeExpr EQ FUN param=IdWithTypeExpr RARROW e=Expr { [(x, param, e)] }
 
 toplevel :
 | e=Expr SEMISEMI { Exp e }
-| LET ls=LetAndExpr SEMISEMI { AndDecls ls }
 | LET REC ls=LetRecAndExpr SEMISEMI { RecDecls ls }
 | ls=TopLetExpr SEMISEMI { Decls ls }
+| LET ls=LetAndExpr SEMISEMI { AndDecls ls }
 | ls=TopLetRecExpr SEMISEMI { RecDecls ls }
 
 Expr :
@@ -144,20 +166,24 @@ IfExpr :
 
 LetExpr :
 | LET ls=LetAndExpr IN e=Expr { LetExp(ls, e) }
-| LET x=ID ls_param=FunParamListExpr EQ e=Expr IN e2=Expr { LetExp([(x, FunExp(ls_param, e))], e2) }
+| LET x=IdWithTypeExpr ls_param=FunParamListExpr EQ e=Expr IN e2=Expr { LetExp([(x, FunExp(ls_param, TyNone, e))], e2) }
+| LET x=IdWithTypeExpr ls_param=FunParamListExpr COLON t=TypeExpr EQ e=Expr IN e2=Expr { LetExp([(x, FunExp(ls_param, t, e))], e2) }
 
 LetRecExpr :
 | LET REC ls=LetRecAndExpr IN e=Expr { LetRecExp(ls, e) }
 
 FunExpr :
-| FUN ls_param=FunParamListExpr RARROW e=Expr { FunExp(ls_param, e) }
+| FUN ls_param=FunParamListExpr COLON t=TypeExpr RARROW e=Expr { FunExp(ls_param, t, e) }
+| FUN ls_param=FunParamListExpr RARROW e=Expr { FunExp(ls_param, TyNone, e) }
 
 DFunExpr :
 | DFUN x=ID RARROW e=Expr { DFunExp(x, e) }
 
 FunParamListExpr :
-| id=ID ls_param=FunParamListExpr { id :: ls_param }
-| id=ID { [id] }
+| id=ID ls_param=FunParamListExpr { (id, TyNone) :: ls_param }
+| id=ID { [(id, TyNone)] }
+| LPAREN id_type=IdWithTypeExpr RPAREN ls_param=FunParamListExpr { id_type :: ls_param }
+| LPAREN id_type=IdWithTypeExpr RPAREN { [id_type] }
 
 ListItemExpr :
   | exp=Expr SEMI ls=ListItemExpr { exp::ls }

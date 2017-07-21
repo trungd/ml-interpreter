@@ -3,7 +3,7 @@ open Syntax
 type exval = 
 | IntV of int
 | BoolV of bool
-| ProcV of id list * exp * dnval Environment.t ref
+| ProcV of (id * ty) list * exp * dnval Environment.t ref
 | DProcV of id * exp * dnval Environment.t ref
 | ListV of exval list
 and dnval = exval
@@ -78,15 +78,15 @@ let rec eval_exp env = function
     (* Allow multiple 'let' with 'and' connected *)
     (* Extend env with list of (id, exp) with calculation under original env *)
     let _env_ = let f = fun newenv id_exp -> 
-      match id_exp with (id, exp) -> Environment.extend id (eval_exp env exp) newenv in 
+      match id_exp with ((id, _), exp) -> Environment.extend id (eval_exp env exp) newenv in 
     List.fold_left f env ls in
     eval_exp _env_ ret_exp
-| FunExp (ids, exp) -> ProcV(ids, exp, ref env)
+| FunExp (ids, _, exp) -> ProcV(ids, exp, ref env)
 | DFunExp (id, exp) -> DProcV(id, exp, ref env)
 | AppExp (expfun, ls_exp) -> apply env (eval_exp env expfun) ls_exp
 (* Ex 3.4.2 *)
 | OpFunExp (op) ->
-    ProcV (["x"; "y"], BinOp(op, Var("x"), Var("y")), ref env)
+    ProcV ([("x", TyNone); ("y", TyNone)], BinOp(op, Var("x"), Var("y")), ref env)
 (**)
 | LetRecExp (ls, ret_exp) ->  
     (* Mutual recursion *)
@@ -95,7 +95,7 @@ let rec eval_exp env = function
           (* Update environment of all Proc *)
           List.map (fun dummyenv -> (dummyenv := newenv;)) dummyenv_ls;
           newenv
-      | it::rest -> (match it with (id, param, exp) ->
+      | it::rest -> (match it with ((id, _), param, exp) ->
         let dummyenv = ref Environment.empty in
           let newenv' = Environment.extend id (ProcV ([param], exp, dummyenv)) newenv in
             dummyenv := newenv';
@@ -122,7 +122,7 @@ and extend_env env eval_env ids exps =
   | [] -> (ids, exps)
   | exp::exps_rest -> match ids with
       | [] -> (ids, exps)
-      | id::ids_rest -> let arg = eval_exp eval_env exp in
+      | (id, _)::ids_rest -> let arg = eval_exp eval_env exp in
           env := Environment.extend id arg !env;
           extend_env env eval_env ids_rest exps_rest
 
@@ -199,7 +199,7 @@ let eval_decl env = function
     (* Add id and value to the extended newenv *)
     let rec decl_ls = function
     | [] -> []
-    | (id, exp)::rest -> 
+    | ((id, _), exp)::rest -> 
         (* All expressions are calculated under new env *)
         let value = eval_exp !newenv exp in 
         newenv := Environment.extend id value !newenv;
@@ -209,7 +209,7 @@ let eval_decl env = function
 | AndDecls id_exp_ls ->
     let _env_ = ref env in
     let f = fun id_exp id_val_ls -> 
-      (match id_exp with (id, exp) ->
+      (match id_exp with ((id, _), exp) ->
         let value = eval_exp env exp in
         _env_ := Environment.extend id value !_env_;
         (id, value) :: id_val_ls) in 
@@ -222,7 +222,7 @@ let eval_decl env = function
     (* Update environment of all Proc *)
     List.map (fun dummyenv -> (dummyenv := newenv;)) dummyenv_ls;
     newenv
-  | it::rest -> (match it with (id, param, exp) ->
+  | it::rest -> (match it with ((id, _), param, exp) ->
     let dummyenv = ref Environment.empty in
     let proc = ProcV ([param], exp, dummyenv) in
       let newenv' = Environment.extend id proc newenv in

@@ -1,1 +1,1 @@
-[fun x -> x + 1; fun y -> y];;
+fun (x: 'a) -> fun y: 'a -> fun z -> z;;

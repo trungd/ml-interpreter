@@ -23,7 +23,6 @@ rule main = parse
 
 | "-"? ['0'-'9']+
     { Parser.INTV (int_of_string (Lexing.lexeme lexbuf)) }
-
 | "(" { Parser.LPAREN }
 | ")" { Parser.RPAREN }
 | "[]" { Parser.EMPTYLIST }
@@ -42,6 +41,19 @@ rule main = parse
 | "|" { Parser.SEP }
 | "::" { Parser.TWOCOLONS }
 | ";" { Parser.SEMI }
+
+| ":" { Parser.COLON }
+| "'" { Parser.SINGQUO }
+| "int" { Parser.TYPE_INT }
+| "bool" { Parser.TYPE_BOOL }
+
+| '\'' ['a'-'z'] ['a'-'z' '0'-'9' '_' '\'']*
+    { let id = Lexing.lexeme lexbuf in
+      try 
+        List.assoc id reservedWords
+      with
+      _ -> Parser.TYPE_ID id
+     }
 
 | ['a'-'z'] ['a'-'z' '0'-'9' '_' '\'']*
     { let id = Lexing.lexeme lexbuf in
