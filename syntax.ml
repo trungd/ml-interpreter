@@ -49,6 +49,7 @@ let tysc_of_ty ty = TyScheme ([], ty)
 
 let cvar_count = ref 0
 let cvar_ls = ref []
+let current_ty = ref TyNone
 
 let type_str cvar_num = 
   if cvar_num < 27 then "'" ^ (Char.escaped (Char.chr (96 + cvar_num)))
@@ -56,31 +57,34 @@ let type_str cvar_num =
 
 (* check if type_str exists in user specified types *)
 let rec check_valid_cvar type_str = function
-| TyVar (TyVarName tvname) -> type_str == tvname
+| TyVar (TyVarName tvname) -> type_str != tvname
 | TyFun (ty1, ty2) -> (check_valid_cvar type_str ty1) && (check_valid_cvar type_str ty2)
 | _ -> true
 
-let rec next_cvar ty = (
-  if check_valid_cvar (type_str (!cvar_count + 1)) ty then cvar_count := !cvar_count + 1
-  else next_cvar ty
+let rec next_cvar () = (
+  if check_valid_cvar (type_str (!cvar_count + 1)) !current_ty then cvar_count := !cvar_count + 1
+  else next_cvar ()
 )
 
-let pp_ty ty = let rec pp_ty' ty org_ty = (match ty with
-| TyInt -> print_string "int"
-| TyBool -> print_string "bool"
-| TyList ty -> pp_ty' ty org_ty; print_string " list"
-| TyVar (TyVarName tvname) -> print_string tvname
+let string_of_ty ty = current_ty := ty; let rec string_of_ty' ty = (match ty with
+| TyNone -> "none"
+| TyInt -> "int"
+| TyBool -> "bool"
+| TyList ty -> (string_of_ty' ty) ^ " list"
+| TyVar (TyVarName tvname) -> tvname
 | TyVar (TyVarId tyvar) -> let (id, c) =
     try List.find (fun (id, c) -> id = tyvar) !cvar_ls 
     with Not_found -> 
-      next_cvar org_ty;
+      next_cvar ();
       cvar_ls := (tyvar, !cvar_count)::!cvar_ls; 
       (tyvar, !cvar_count) in
-  print_string (type_str c)
+  (type_str c)
 | TyFun (ty1, ty2) -> match ty1 with 
-  | TyFun (_, _) -> print_string "("; pp_ty' ty1 org_ty; print_string ")"; print_string " -> "; pp_ty' ty2 org_ty
-  | _ -> pp_ty' ty1 org_ty; print_string " -> "; pp_ty' ty2 org_ty) in
-pp_ty' ty ty
+  | TyFun (_, _) -> let sty1 = string_of_ty' ty1 in let sty2 = string_of_ty' ty2 in "(" ^ sty1 ^ ") -> " ^ sty2
+  | _ -> let sty1 = string_of_ty' ty1 in let sty2 = string_of_ty' ty2 in sty1 ^ " -> " ^ sty2) in
+string_of_ty' ty
+
+let pp_ty ty = print_string (string_of_ty ty)
   
 let rec freevar_ty = function
 | TyVar tv -> MySet.singleton tv

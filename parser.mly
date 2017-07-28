@@ -55,6 +55,7 @@ LetRecAndExpr :
 TopLetExpr :
 | LET x=IdWithTypeExpr EQ e=Expr ls=TopLetExpr { (x, e)::ls }
 | LET x=IdWithTypeExpr EQ e=Expr { [(x, e)] }
+(* function *)
 | LET x=IdWithTypeExpr ls_param=FunParamListExpr EQ e=Expr { [(x, FunExp(ls_param, TyNone, e))] }
 | LET x=IdWithTypeExpr ls_param=FunParamListExpr COLON t=TypeExpr EQ e=Expr { [(x, FunExp(ls_param, t, e))] }
 

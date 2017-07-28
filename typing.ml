@@ -71,12 +71,17 @@ let rec unify l = match l with
     | (TyFun  (t11, t12), TyFun (t21, t22)) -> unify ((t11, t21)::(t12, t22)::tail)
     | (TyList ty1, TyList ty2) -> unify ((ty1, ty2)::tail)
     | (TyVar tv, ty) -> 
-        if (check_in_ftv tv ty) then err "型があってませんよ1"
+        if (check_in_ftv tv ty) then
+          let sty1 = string_of_ty t1 in let sty2 = string_of_ty t2 in
+          err ("This expression has type " ^ sty1 ^ " but an expression was expected of type " ^ sty2 ^ "\nThe type variable " ^ sty1 ^ " occurs inside " ^ sty2)
         else (tv, ty) :: (unify (subst_types [(tv, t2)] tail))
     | (ty, TyVar tv) -> 
-        if (check_in_ftv tv ty) then err "型があってませんよ2"
+        if (check_in_ftv tv ty) then 
+          let sty2 = string_of_ty t1 in let sty1 = string_of_ty t2 in
+          err ("This expression has type " ^ sty1 ^ " but an expression was expected of type " ^ sty2 ^ "\nThe type variable " ^ sty1 ^ " occurs inside " ^ sty2)
         else (tv, ty) :: (unify (subst_types [(tv, t2)] tail))
-    | _ -> err "型があってませんよ3")
+    | (ty1, ty2) -> let sty1 = string_of_ty ty1 in let sty2 = string_of_ty ty2 in
+        err ("This expression has type " ^ sty1 ^ " but an expression was expected of type " ^ sty2))
 
 let ty_prim op ty1 ty2 = match op with
 | Plus -> ([(ty1, TyInt); (ty2, TyInt)], TyInt)
@@ -86,7 +91,7 @@ let ty_prim op ty1 ty2 = match op with
 | Lt -> ([(ty1, TyInt); (ty2, TyInt)], TyBool)
 | Gt -> ([(ty1, TyInt); (ty2, TyInt)], TyBool)
 | Eq -> ([(ty1, TyInt); (ty2, TyInt)], TyBool)
-| _ -> err "Not Implemented 3"
+| _ -> err "Unimplemented"
 
 let rec ty_exp tyenv = function
 | Var x ->
@@ -116,34 +121,24 @@ let rec ty_exp tyenv = function
     let (s1, ty1) = ty_exp tyenv exp in
     let newenv = Environment.extend id (closure ty1 tyenv s1) tyenv in
     let sret, tyret = ty_exp newenv exp_ret in
-    let eqs = (eqs_of_subst s1) @ (eqs_of_subst sret) in
+    let eqs = (eqs_of_subst s1) @ (eqs_of_subst sret) @ (if id_ty != TyNone then [(ty1, id_ty)] else []) in
     let s = unify eqs in (s, subst_type s tyret))
 | LetRecExp (ls, ret_exp) -> log "LetRecExp";
     let ((fun_id, fun_ty), (param_id, param_ty), exp) = List.hd ls in
     let param_ty = TyVar (fresh_tyvar ()) in
     let ret_tv = fresh_tyvar () in let ret_ty = TyVar ret_tv in
     let fun_ty = TyFun (param_ty, ret_ty) in
-    log ("fun " ^ fun_id ^ ": ");
-    log_ty fun_ty;
-    (* extend param *)
+    (* extend param and fun to calculate returned expression *)
     let newenv_param = Environment.extend param_id (tysc_of_ty param_ty) tyenv in
     let newenv = Environment.extend fun_id (tysc_of_ty fun_ty) newenv_param in
     let (se, tye) = ty_exp newenv exp in
     let se' = unify (eqs_of_subst se @ [(ret_ty, tye)]) in
     let fun_ty' = subst_type se' (TyFun(param_ty, tye)) in
-    
-    log ("fun " ^ fun_id ^ ": ");
-    log_ty (TyFun(param_ty, tye));
-    log_subst (se @ [(ret_tv, tye)]);
-    log_ty (subst_type (se @ [(ret_tv, tye)]) (TyFun(param_ty, tye)));
-    
-    (* extend param and id *)
-    let newenv_id = Environment.extend fun_id (closure fun_ty' tyenv se) tyenv in
-    let sret, tyret = ty_exp newenv_id ret_exp in
+    (* extend fun only *)
+    let newenv_fun = Environment.extend fun_id (closure fun_ty' tyenv se) tyenv in
+    let sret, tyret = ty_exp newenv_fun ret_exp in
     let eqs = (eqs_of_subst sret) @ (eqs_of_subst se) @ [(ret_ty, tye)] in
-    log_ty_ls eqs;
     let s = unify eqs in
-    log "/LetRecExp";
     (s, subst_type s tyret)
 | FunExp (param_id_ls, ty, exp) -> log "FunExp";
     let (param_id, param_type) = List.hd param_id_ls in
@@ -166,7 +161,7 @@ let rec ty_exp tyenv = function
       | TyVar tv -> let ty_ret = TyVar (fresh_tyvar()) in 
         eqs := !eqs @ (eqs_of_subst se) @ [(TyVar tv, TyFun (tye, ty_ret))];
         tyret := ty_ret
-      | _ -> err "型があってませんよ"
+      | _ -> err ("This expression has type " ^ (string_of_ty !tyret) ^ "\nThis is not a function; it cannot be applied.")
     in
     List.iter f ls_exp;
     log_ty_ls !eqs;
@@ -194,22 +189,22 @@ let rec ty_exp tyenv = function
     in
     List.iter f (List.tl match_pattern_list);
     let s = unify !eqs in (s, subst_type s tye0)
-| _ -> err ("Not Implemented 1")
+| _ -> err ("Unimplemented")
 
 let ty_decl tyenv decl = cvar_count := 0; cvar_ls := []; 
 match decl with
 | Exp e -> let (_, ty) = ty_exp tyenv e in (tyenv, [ty])
 | Decls id_exp_ls -> 
     let newtyenv = ref tyenv in
-    let f = function((id, ty), exp) -> 
-      let (env', ty) = ty_exp tyenv exp in
+    let f = function((id, id_ty), exp) -> 
+      let (_, ty) = ty_exp tyenv (LetExp ([((id, id_ty), exp)], Var id)) in
       newtyenv := Environment.extend id (TyScheme (MySet.to_list (freevar_ty ty), ty)) !newtyenv; ty in
     let tyexps = List.map f id_exp_ls in
     (!newtyenv, tyexps)
 | AndDecls id_exp_ls -> 
     let newtyenv = ref tyenv in
-    let f = function((id, ty), exp) -> 
-      let (env', ty) = ty_exp tyenv exp in
+    let f = function((id, id_ty), exp) -> 
+      let (_, ty) = ty_exp tyenv (LetExp ([((id, id_ty), exp)], Var id)) in
       newtyenv := Environment.extend id (TyScheme (MySet.to_list (freevar_ty ty), ty)) !newtyenv; ty in
     let tyexps = List.map f id_exp_ls in
     (!newtyenv, tyexps)
