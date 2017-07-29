@@ -1,3 +1,6 @@
+An OCaml interpreter rewritten in OCaml!
+(Computer Science Experiment and Exercise - Class of 2017, Kyoto University)
+
 Compile
 
 ```
@@ -16,7 +19,7 @@ or run in interactive mode
 ./miniml
 ```
 
-# Available Functionality
+# Available Features
 
 - Declaration with arithmetic & logic calculations: +, -, *, &&, ||
 
