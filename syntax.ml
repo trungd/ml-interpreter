@@ -85,15 +85,6 @@ let string_of_ty ty = current_ty := ty; let rec string_of_ty' ty = (match ty wit
 string_of_ty' ty
 
 let pp_ty ty = print_string (string_of_ty ty)
-  
-let rec freevar_ty = function
-| TyVar tv -> MySet.singleton tv
-| TyFun (ty1, ty2) -> MySet.union (freevar_ty ty1) (freevar_ty ty2)
-| _ -> MySet.empty
-
-let rec freevar_tysc = function TyScheme (vars, ty) ->
-  let freevars = freevar_ty ty in
-  MySet.diff freevars (MySet.from_list vars)
 
 let fresh_tyvar =
   let counter = ref 0 in

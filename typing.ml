@@ -7,6 +7,15 @@ let debug_mode = false
 (* Type Environement *)
 type tyenv = tysc Environment.t
 
+let rec freevar_ty = function
+| TyVar tv -> MySet.singleton tv
+| TyFun (ty1, ty2) -> MySet.union (freevar_ty ty1) (freevar_ty ty2)
+| _ -> MySet.empty
+
+let rec freevar_tysc = function TyScheme (vars, ty) ->
+  let freevars = freevar_ty ty in
+  MySet.diff freevars (MySet.from_list vars)
+
 let rec freevar_tyenv tyenv = 
   let tysc_ls = (List.map (fun (id, tysc) -> tysc) (Environment.get_list tyenv)) in
   MySet.bigunion(
@@ -70,12 +79,12 @@ let rec unify l = match l with
     else (match (t1, t2) with
     | (TyFun  (t11, t12), TyFun (t21, t22)) -> unify ((t11, t21)::(t12, t22)::tail)
     | (TyList ty1, TyList ty2) -> unify ((ty1, ty2)::tail)
-    | (TyVar tv, ty) -> 
+    | (TyVar tv, ty) ->
         if (check_in_ftv tv ty) then
           let sty1 = string_of_ty t1 in let sty2 = string_of_ty t2 in
           err ("This expression has type " ^ sty1 ^ " but an expression was expected of type " ^ sty2 ^ "\nThe type variable " ^ sty1 ^ " occurs inside " ^ sty2)
         else (tv, ty) :: (unify (subst_types [(tv, t2)] tail))
-    | (ty, TyVar tv) -> 
+    | (ty, TyVar tv) ->
         if (check_in_ftv tv ty) then 
           let sty2 = string_of_ty t1 in let sty1 = string_of_ty t2 in
           err ("This expression has type " ^ sty1 ^ " but an expression was expected of type " ^ sty2 ^ "\nThe type variable " ^ sty1 ^ " occurs inside " ^ sty2)
@@ -119,10 +128,17 @@ let rec ty_exp tyenv = function
     let s = unify eqs in (s, subst_type s ty2)
 | LetExp (id_exp_ls, exp_ret) -> (match List.hd id_exp_ls with ((id, id_ty), exp) ->
     let (s1, ty1) = ty_exp tyenv exp in
-    let newenv = Environment.extend id (closure ty1 tyenv s1) tyenv in
+    let ty1' = if id_ty == TyNone then ty1 else (
+      let eqs = (eqs_of_subst s1) @ [(ty1, id_ty)] in
+      let s = unify eqs in 
+      subst_type s ty1) in
+    let newenv = Environment.extend id (closure ty1' tyenv s1) tyenv in
     let sret, tyret = ty_exp newenv exp_ret in
     let eqs = (eqs_of_subst s1) @ (eqs_of_subst sret) @ (if id_ty != TyNone then [(ty1, id_ty)] else []) in
-    let s = unify eqs in (s, subst_type s tyret))
+    let s = unify eqs in 
+    log_subst s;
+    log_ty tyret;
+    (s, subst_type s tyret))
 | LetRecExp (ls, ret_exp) -> log "LetRecExp";
     let ((fun_id, fun_ty), (param_id, param_ty), exp) = List.hd ls in
     let param_ty = TyVar (fresh_tyvar ()) in
@@ -140,14 +156,12 @@ let rec ty_exp tyenv = function
     let eqs = (eqs_of_subst sret) @ (eqs_of_subst se) @ [(ret_ty, tye)] in
     let s = unify eqs in
     (s, subst_type s tyret)
-| FunExp (param_id_ls, ty, exp) -> log "FunExp";
+| FunExp (param_id_ls, ty, exp) ->
     let (param_id, param_type) = List.hd param_id_ls in
     let param_ty = (match param_type with TyNone -> TyVar (fresh_tyvar ()) | ty -> ty) in
     let s_ret, ty_ret = ty_exp (Environment.extend param_id (tysc_of_ty param_ty) tyenv) exp in
     let eqs = (eqs_of_subst s_ret) @ (if ty != TyNone then [(ty, ty_ret)] else []) in
     let s = unify eqs in
-    log ("fun " ^ param_id ^ " -> ...: ");
-    log "/FunExp";
     (s, (subst_type s (TyFun (param_ty, ty_ret))))
 | AppExp (expfun, ls_exp) -> log "AppExp";
     let sfun, tyfun = ty_exp tyenv expfun in

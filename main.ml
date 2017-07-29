@@ -3,13 +3,23 @@ open Eval
 open Printf
 open Typing
 
+let print_result_value_with_type id v ty =
+  printf "val %s : " id; 
+  pp_ty ty; 
+  printf " = "; 
+  pp_val v; ()
+
+let print_result_value id v = 
+  printf "val %s = " id; 
+  pp_val v; ()
+
 let rec print_result id_val_ls ty_ls = (match id_val_ls with
 | [] -> ()
 | (id, v)::rest1 -> (match ty_ls with
     | [] -> ()
     | ty::rest2 ->
-      printf "val %s : " id; 
-      pp_ty ty; printf " = "; pp_val v; 
+      (*print_result_value id v;*)
+      print_result_value_with_type id v ty;
       print_newline (); 
       print_result rest1 rest2
   )
